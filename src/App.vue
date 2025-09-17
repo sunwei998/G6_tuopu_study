@@ -6,57 +6,30 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import G6 from '@antv/g6'
 
+// 生成浅色随机色，避免太白也不太暗
 function randomLightColor() {
-  const r = Math.floor(150 + Math.random() * 70)  // 150~220
-  const g = Math.floor(150 + Math.random() * 70)
-  const b = Math.floor(150 + Math.random() * 70)
-  return `rgb(${r},${g},${b})`
+   const h = Math.floor(Math.random() * 360)
+  const s = Math.floor(40 + Math.random() * 30)  // 40%-70% 饱和度，避免过艳
+  const l = Math.floor(50 + Math.random() * 20)  // 50%-70% 亮度，避免过浅或过暗
+  return `hsl(${h}, ${s}%, ${l}%)`
 }
 
 
-
-const groups = {
-  A: { name: '抖音', nodes: ['A1', 'A21', 'A22', 'A23'] },
-  B: { name: '微博', nodes: ['B1', 'B21', 'B22', 'B23'] },
-  C: { name: '小红书', nodes: ['C1', 'C21', 'C22', 'C23'] }
-}
-
-// 给每个族群分配颜色
-for (const key in groups) {
-  groups[key].color = randomLightColor()
-}
-
-// 构造节点数据，带comboId表示所属族群
-const nodes = []
-for (const key in groups) {
-  const group = groups[key]
-  group.nodes.forEach(id => {
-    const isPrimary = id.length === 2
-    nodes.push({
-      id,
-      label: id,
-      comboId: key,
-      group: key,
-      isPrimary,
-      size: isPrimary ? 60 : 20, // 一级节点大，二级节点小
-      style: {
-        fill: groups[key].color,
-        stroke: '#ccc',
-        lineWidth: 1,
-        cursor: 'pointer'
-      },
-      labelCfg: {
-        style: {
-          fill: '#000',
-          fontWeight: isPrimary ? 'bold' : 'normal', // 一级加粗，二级正常
-          fontSize: isPrimary ? 16 : 12
-        },
-        position: isPrimary ? 'center' : 'right',
-        offset: isPrimary ? 0 : 10
-      }
-    })
-  })
-}
+// 后端返回的节点数据示例
+const nodes = [
+  { id: 'A1', label: '爱搞机的王老吉', groupName: '小红书', level: 1 },
+  { id: 'A21', label: '爱搞机的张老吉', groupName: '小红书', level: 2 },
+  { id: 'A22', label: '华为老黑马', groupName: '小红书', level: 2 },
+  { id: 'A23', label: '华为小白鼠', groupName: '小红书', level: 2 },
+  { id: 'B1', label: '校长的梦', groupName: '抖音', level: 1 },
+  { id: 'B21', label: '苹果中国', groupName: '抖音', level: 2 },
+  { id: 'B22', label: '小鬼的苹果全家桶', groupName: '抖音', level: 2 },
+  { id: 'B23', label: '挥霍无度回家', groupName: '抖音', level: 2 },
+  { id: 'C1', label: '华为问界', groupName: '微博', level: 1 },
+  { id: 'C21', label: '老丁搞机', groupName: '微博', level: 2 },
+  { id: 'C22', label: '华强北一哥', groupName: '微博', level: 2 },
+  { id: 'C23', label: '张某玩手机', groupName: '微博', level: 2 }
+]
 
 const edges = [
   { source: 'A1', target: 'B1' },
@@ -72,33 +45,85 @@ const edges = [
   { source: 'C1', target: 'C23' }
 ]
 
-const combos = Object.entries(groups).map(([key, group]) => ({
-  id: key,
-  label: group.name,
-  style: {
-    fill: groups[key].color,
-    opacity: 0.1,
-    stroke: groups[key].color,
-    lineWidth: 2,
-    shadowColor: groups[key].color,
-    shadowBlur: 30,
-    shadowOffsetX: 0,
-    shadowOffsetY: 0,
-    filter: `drop-shadow(0 0 10px ${groups[key].color})`
-  },
-  labelCfg: {
-    style: {
-      fill: '#000',
-      fontWeight: 'bold',
-      fontSize: 16
-    }
-  }
-}))
-
 const container = ref(null)
 let graph = null
 
 onMounted(() => {
+  // 1. 提取所有族群名，生成 groups 和 combos
+  const groupNames = [...new Set(nodes.map(n => n.groupName))]
+  const groups = {}
+  groupNames.forEach(name => {
+    groups[name] = {
+      color: randomLightColor(),
+      name
+    }
+  })
+
+  const combos = groupNames.map(name => ({
+    id: name,
+    label: name,
+    style: {
+      fill: groups[name].color,
+      opacity: 0.1,
+      stroke: groups[name].color,
+      lineWidth: 2,
+      shadowColor: groups[name].color,
+      shadowBlur: 30,
+      shadowOffsetX: 0,
+      shadowOffsetY: 0,
+      filter: `drop-shadow(0 0 10px ${groups[name].color})`
+    },
+    labelCfg: {
+      style: {
+        fill: '#000',
+        fontWeight: 'bold',
+        fontSize: 16
+      }
+    }
+  }))
+
+  // 2. 处理节点数据，补充 comboId、大小、样式、标签配置
+  const processedNodes = nodes.map(node => {
+    const isPrimary = node.level === 1
+    const groupColor = groups[node.groupName].color
+    return {
+      ...node,
+      comboId: node.groupName,
+      size: isPrimary ? 60 : 20,
+      style: {
+        fill: groupColor,
+        stroke: '#ccc',
+        lineWidth: 1,
+        cursor: 'pointer'
+      },
+      labelCfg: {
+        style: {
+          fill: '#000',
+          fontWeight: isPrimary ? '700' : '600',
+          fontSize: isPrimary ? 16 : 12
+        },
+        position: isPrimary ? 'center' : 'right',
+        offset: isPrimary ? 0 : 10
+      }
+    }
+  })
+
+  // 3. 设置边颜色和箭头颜色与源节点颜色一致
+  edges.forEach(edge => {
+    const sourceNode = processedNodes.find(n => n.id === edge.source)
+    if (sourceNode) {
+      edge.style = {
+        stroke: sourceNode.style.fill,
+        endArrow: {
+          path: G6.Arrow.triangle(10, 15, 5),
+          fill: sourceNode.style.fill
+        },
+        lineWidth: 2
+      }
+    }
+  })
+
+  // 4. 初始化图实例
   graph = new G6.Graph({
     container: container.value,
     width: window.innerWidth - 64,
@@ -148,57 +173,40 @@ onMounted(() => {
     }
   })
 
-  // 设置边颜色等
-  edges.forEach(edge => {
-    const sourceNode = nodes.find(n => n.id === edge.source)
-    if (sourceNode) {
-      edge.style = {
-        stroke: sourceNode.style.fill,
-        endArrow: {
-          path: G6.Arrow.triangle(10, 15, 5),
-          fill: sourceNode.style.fill
-        },
-        lineWidth: 2
-      }
-    }
-  })
-
-  graph.data({ nodes, edges, combos })
+  graph.data({ nodes: processedNodes, edges, combos })
   graph.render()
-  // 等布局完成后fitView
+
+  // 布局完成后自动缩放并居中
   graph.on('afterlayout', () => {
     graph.fitView(20)
   })
 
-
-  // 节点点击打印信息
+  // 节点点击事件
   graph.on('node:click', evt => {
     const node = evt.item
     console.log('点击节点信息:', node.getModel())
   })
 
-  // 绑定 resize 事件监听
-  window.addEventListener('resize', onResize)
-})
-
-function onResize() {
-  if (!graph) return
-  const width = window.innerWidth - 64
-  const height = 600
-  graph.changeSize(width, height)
-  graph.updateLayout({
-    center: [width / 2, height / 2]
-  })
-  graph.fitView(20)
-}
-
-onBeforeUnmount(() => {
-  // 移除事件监听，销毁图实例
-  window.removeEventListener('resize', onResize)
-  if (graph) {
-    graph.destroy()
-    graph = null
+  // 监听窗口大小变化，动态调整画布和布局
+  function onResize() {
+    if (!graph) return
+    const width = window.innerWidth - 64
+    const height = 600
+    graph.changeSize(width, height)
+    graph.updateLayout({
+      center: [width / 2, height / 2]
+    })
+    graph.fitView(20)
   }
+  window.addEventListener('resize', onResize)
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('resize', onResize)
+    if (graph) {
+      graph.destroy()
+      graph = null
+    }
+  })
 })
 </script>
 
